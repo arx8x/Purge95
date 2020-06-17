@@ -1,0 +1,10 @@
+Package: net.arx8x.purge95
+Name: Purge95
+Depends: mobilesubstrate
+Version: 0.2.1
+Architecture: iphoneos-arm
+Description: Clear battery stats if unplugged at around 95-100%
+Depiction: https://arx8x.github.io/depictions/Purge95.html
+Maintainer: ARX8x
+Author: ARX8x
+Section: Tweaks
