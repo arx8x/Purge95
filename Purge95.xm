@@ -32,6 +32,13 @@ static void clear_battery_data_and_reload_aggregated()
   // this is unlikely but what if deletions of the files takes 10 minutes (hypothetically),
   // the device is unplugged twice? we don't want aggregated to be reloaded like that
   if(is_waiting_to_clear) return;
+	time_t current_time;
+	time(&current_time);
+	long time_diff = current_time - last_cleared_time;
+	if(time_diff < 300)
+	{
+		HBLogDebug(@"It has been only %ld seconds since the last purge; WON'T CLEAR", time_diff);
+	}
   is_waiting_to_clear = true;
   HBLogDebug(@"WILL CLEAR");
   int aggregated_unload_error = run_command("launchctl unload /System/Library/LaunchDaemons/com.apple.aggregated.plist");
@@ -51,10 +58,7 @@ static void clear_battery_data_and_reload_aggregated()
 static void io_service_callback(void *	refcon, io_service_t srv, natural_t type, void * arg)
 {
   HBLogDebug(@"lifetime notification count %ld", ++notification_count);
-  time_t current_time;
-  time(&current_time);
-  HBLogDebug(@"It has been %ld seconds since last purge", (current_time - last_cleared_time));
-  if(is_waiting_to_clear || (current_time - last_cleared_time < 300)) return;
+  if(is_waiting_to_clear) return;
 
   CFMutableDictionaryRef dict;
   if(!iopm_sevice)
@@ -66,6 +70,8 @@ static void io_service_callback(void *	refcon, io_service_t srv, natural_t type,
       return;
     }
   }
+	// HBLogDebug(@"delay 3 seconds");
+	// sleep(3);
   kern_return_t pret = IORegistryEntryCreateCFProperties(iopm_sevice, &dict, 0, 0);
   HBLogDebug(@"Notification received, service properties : %d", pret);
   CFBooleanRef is_charging_cf;
@@ -109,6 +115,10 @@ static void io_service_callback(void *	refcon, io_service_t srv, natural_t type,
           HBLogDebug(@"clearing");
           clear_battery_data_and_reload_aggregated();
         }
+				else
+				{
+					HBLogDebug(@"Battery is at %f. Can't clear", current_percentage);
+				}
       }
     }
     else
@@ -133,12 +143,11 @@ static void io_service_callback(void *	refcon, io_service_t srv, natural_t type,
     // can also be used. I just want this to also work on iOS 10.
     // Also gotta look into MachingNotifications for something that shows up in IOKit when a power source is connected, regardles
     // of it being wired or wireless.
-    io_service_t wireless_service_test = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("AppleSMCWirelessCharger"));
-    io_service_t usb = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("AppleTriStarBuiltIn"));
 
     IONotificationPortRef port = IONotificationPortCreate(kIOMasterPortDefault);
     CFRunLoopSourceRef runloopsauce = IONotificationPortGetRunLoopSource(port);
 
+		io_service_t usb = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("AppleHydraBuiltIn"));
     if(usb)
     {
       io_object_t notification_usb;
@@ -147,6 +156,7 @@ static void io_service_callback(void *	refcon, io_service_t srv, natural_t type,
     }
 
     // I'm still very unsure about this. I don't even know what this is. Still giving it a try
+		io_service_t wireless_service_test = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("AppleSMCWirelessCharger"));
     if(wireless_service_test)
     {
       io_object_t notification_wireless_test;
